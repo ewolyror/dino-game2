@@ -1,0 +1,805 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Fraction Dino Challenge</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Nunito:wght@400;700;900&display=swap');
+
+  :root {
+    --accent: #7c3aed;
+    --accent2: #a78bfa;
+    --danger: #e53935;
+    --gold: #FFD700;
+    --panel: rgba(255,255,255,0.93);
+  }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body { font-family:'Nunito',sans-serif; min-height:100vh; overflow-x:hidden; position:relative; }
+
+  .sky-bg {
+    position:fixed; inset:0;
+    background:linear-gradient(180deg,#3b1f6e 0%,#6b3fa0 40%,#b57bee 75%,#e8d5ff 100%);
+    z-index:0;
+  }
+
+  /* Stars */
+  .stars { position:fixed; inset:0; z-index:1; pointer-events:none; }
+  .star {
+    position:absolute; background:white; border-radius:50%;
+    animation:twinkle ease-in-out infinite alternate;
+  }
+  @keyframes twinkle { from{opacity:.2;transform:scale(.8)} to{opacity:1;transform:scale(1.2)} }
+
+  .cloud {
+    position:fixed; background:rgba(255,255,255,0.15); border-radius:50px;
+    z-index:2; animation:cloudMove linear infinite;
+  }
+  .cloud::before,.cloud::after { content:''; position:absolute; background:rgba(255,255,255,0.15); border-radius:50%; }
+  .cloud::before { width:60%; height:160%; top:-40%; left:10%; }
+  .cloud::after  { width:45%; height:130%; top:-20%; right:10%; }
+  @keyframes cloudMove { from{transform:translateX(110vw)} to{transform:translateX(-320px)} }
+
+  .ground {
+    position:fixed; bottom:0; left:0; right:0; height:60px;
+    background:#4a2c6e; z-index:2;
+  }
+  .ground::before {
+    content:''; position:absolute; top:-16px; left:0; right:0;
+    height:18px; background:#7c3aed; border-radius:4px 4px 0 0;
+  }
+
+  .dino-scene {
+    position:fixed; bottom:58px; left:0; right:0; height:110px;
+    z-index:5; pointer-events:none;
+  }
+  #dino-canvas { position:absolute; bottom:0; left:0; width:100%; height:100%; }
+
+  #app {
+    position:relative; z-index:10; min-height:100vh;
+    display:flex; flex-direction:column; align-items:center;
+    padding:20px 10px 110px;
+  }
+
+  .game-title {
+    font-family:'Press Start 2P',monospace; color:#fff;
+    font-size:clamp(12px,2.8vw,20px); text-align:center; margin-bottom:14px;
+    text-shadow:3px 3px 0 #7c3aed, 5px 5px 0 rgba(0,0,0,.3); letter-spacing:2px;
+  }
+
+  .panel {
+    background:var(--panel); border-radius:20px; padding:26px 30px;
+    box-shadow:0 8px 32px rgba(0,0,0,.25),0 2px 0 white inset;
+    border:3px solid rgba(124,58,237,.2); width:100%; max-width:580px; margin-bottom:14px;
+  }
+
+  /* HS bar */
+  .high-score-bar { display:flex; gap:10px; width:100%; max-width:580px; margin-bottom:14px; }
+  .hs-box {
+    flex:1; background:rgba(255,255,255,.15); backdrop-filter:blur(8px);
+    border-radius:12px; padding:8px 10px; text-align:center;
+    border:2px solid rgba(255,255,255,.25);
+  }
+  .hs-box .hs-label { font-family:'Press Start 2P',monospace; font-size:6px; color:rgba(255,255,255,.7); margin-bottom:3px; display:block; }
+  .hs-box .hs-val   { font-family:'Press Start 2P',monospace; font-size:14px; color:var(--gold); text-shadow:1px 1px 0 #b8860b; }
+  .hs-box.active-mode { border-color:var(--gold); background:rgba(255,215,0,.15); }
+
+  /* Mode screen */
+  #mode-screen h2 {
+    font-family:'Press Start 2P',monospace; font-size:12px; color:#333;
+    margin-bottom:20px; text-align:center; line-height:2;
+  }
+  .mode-btn {
+    display:block; width:100%; padding:15px 20px; margin:9px 0;
+    border:3px solid #333; border-radius:14px; cursor:pointer;
+    font-family:'Nunito',sans-serif; font-weight:900; font-size:16px; transition:all .12s;
+    text-align:left;
+  }
+  .mode-btn.lv1 { background:linear-gradient(135deg,#d4fc79,#96e6a1); color:#1a3a1a; box-shadow:0 5px 0 #3a7a3a; }
+  .mode-btn.lv2 { background:linear-gradient(135deg,#89f7fe,#66a6ff); color:#0a1a3a; box-shadow:0 5px 0 #2a5aaa; }
+  .mode-btn.lv3 { background:linear-gradient(135deg,#fddb92,#d1fdff); color:#3a2a0a; box-shadow:0 5px 0 #8a7a2a; }
+  .mode-btn.lv4 { background:linear-gradient(135deg,#f953c6,#b91d73); color:#fff;    box-shadow:0 5px 0 #7a0a4a; }
+  .mode-btn:hover  { transform:translateY(-2px); filter:brightness(1.05); }
+  .mode-btn:active { transform:translateY(3px); }
+  .mode-btn .btn-title { font-size:16px; font-weight:900; display:block; }
+  .mode-btn .btn-sub   { font-size:12px; font-weight:700; opacity:.75; display:block; margin-top:3px; }
+
+  /* HUD */
+  #game-screen { display:none; }
+  .hud { display:flex; justify-content:space-between; align-items:center; margin-bottom:14px; gap:10px; flex-wrap:wrap; }
+  .hud-item { background:rgba(255,255,255,.88); border-radius:12px; padding:7px 14px; text-align:center; border:2px solid rgba(0,0,0,.09); min-width:76px; }
+  .hud-item .lbl { font-family:'Press Start 2P',monospace; font-size:7px; color:#aaa; display:block; margin-bottom:2px; }
+  .hud-item .val { font-family:'Press Start 2P',monospace; font-size:18px; color:#333; }
+  #timer-val { color:var(--accent); }
+  #timer-val.urgent { color:var(--danger); animation:blink .5s infinite alternate; }
+  @keyframes blink { from{opacity:1} to{opacity:.35} }
+  #score-val { color:#2e7d32; }
+  #score-val.flash-minus { color:var(--danger); animation:shake .3s; }
+  @keyframes shake { 0%,100%{transform:translateX(0)} 25%{transform:translateX(-6px)} 75%{transform:translateX(6px)} }
+
+  .timer-bar-wrap { width:100%; height:13px; background:rgba(0,0,0,.09); border-radius:7px; overflow:hidden; margin-bottom:14px; border:2px solid rgba(0,0,0,.08); }
+  #timer-bar { height:100%; border-radius:7px; transition:width 1s linear,background 1s; width:100%; background:linear-gradient(90deg,#7c3aed,#a78bfa); }
+
+  /* Question box – big enough for stacked fractions */
+  .question-box {
+    text-align:center; padding:18px 12px;
+    background:linear-gradient(135deg,#f3e8ff,#ede9fe);
+    border-radius:16px; border:3px solid #a78bfa; margin-bottom:14px;
+    min-height:90px; display:flex; align-items:center; justify-content:center;
+  }
+
+  /* Fraction layout rendered as HTML */
+  .frac-expr {
+    display:flex; align-items:center; justify-content:center;
+    gap:10px; flex-wrap:wrap;
+    font-family:'Nunito',sans-serif; font-weight:900; color:#2d1b69;
+  }
+  .frac-expr .op-sym {
+    font-size:clamp(22px,6vw,32px); font-weight:900; color:#7c3aed; line-height:1;
+  }
+  .frac-expr .q-mark {
+    font-family:'Press Start 2P',monospace; font-size:clamp(20px,5vw,28px); color:#7c3aed;
+  }
+  /* A single fraction: num over denom */
+  .frac {
+    display:inline-flex; flex-direction:column; align-items:center;
+    font-size:clamp(16px,4vw,22px); line-height:1.1; gap:1px;
+  }
+  .frac .num { border-bottom:3px solid #2d1b69; padding:0 4px; min-width:20px; text-align:center; }
+  .frac .den { padding:0 4px; min-width:20px; text-align:center; }
+  /* Mixed number (whole + fraction) */
+  .mixed { display:inline-flex; align-items:center; gap:4px; }
+  .mixed .whole { font-size:clamp(20px,5vw,28px); font-weight:900; }
+  /* For sqrt display */
+  .sqrt-wrap {
+    display:inline-flex; align-items:center;
+    font-size:clamp(20px,5vw,28px); font-weight:900; color:#2d1b69;
+  }
+  .sqrt-wrap .rad-sym { font-size:1.3em; margin-right:2px; color:#7c3aed; }
+
+  /* Answer input */
+  .answer-section { margin-bottom:12px; }
+  .answer-hint {
+    font-family:'Press Start 2P',monospace; font-size:8px; color:#888;
+    text-align:center; margin-bottom:8px;
+  }
+  .answer-row { display:flex; gap:10px; align-items:center; justify-content:center; flex-wrap:wrap; }
+
+  /* Fraction input: two number boxes stacked */
+  .frac-input-wrap {
+    display:inline-flex; flex-direction:column; align-items:center; gap:2px;
+  }
+  .frac-input-wrap input {
+    width:72px; padding:8px 6px;
+    font-family:'Press Start 2P',monospace; font-size:16px;
+    border:3px solid #7c3aed; border-radius:10px; text-align:center;
+    background:white; color:#333; outline:none;
+    transition:border-color .2s,box-shadow .2s;
+  }
+  .frac-input-wrap input:focus { border-color:var(--accent); box-shadow:0 0 0 3px rgba(124,58,237,.2); }
+  .frac-input-wrap .frac-line { width:72px; height:3px; background:#2d1b69; border-radius:2px; }
+  .frac-input-wrap.correct input { border-color:#4CAF50; background:#f1fff1; }
+  .frac-input-wrap.wrong   input { border-color:var(--danger); background:#fff1f1; }
+
+  #submit-btn {
+    padding:13px 20px; background:var(--accent); color:white; border:3px solid #333;
+    border-radius:12px; font-family:'Press Start 2P',monospace; font-size:11px;
+    cursor:pointer; box-shadow:0 5px 0 #4c1d95; transition:all .1s; align-self:center;
+  }
+  #submit-btn:hover  { transform:translateY(-2px); }
+  #submit-btn:active { transform:translateY(3px); box-shadow:0 2px 0 #4c1d95; }
+
+  #feedback { font-family:'Press Start 2P',monospace; font-size:11px; text-align:center; height:20px; margin-bottom:10px; }
+  #feedback.correct { color:#2e7d32; }
+  #feedback.wrong   { color:var(--danger); }
+
+  .ctrl-row { display:flex; gap:10px; justify-content:center; }
+  .ctrl-btn { padding:9px 18px; border:3px solid #333; border-radius:10px; font-family:'Press Start 2P',monospace; font-size:9px; cursor:pointer; transition:all .1s; box-shadow:0 4px 0 #888; }
+  #pause-btn   { background:#fff176; color:#333; }
+  #restart-btn { background:#ef9a9a; color:#333; }
+  .ctrl-btn:hover  { transform:translateY(-2px); box-shadow:0 6px 0 #888; }
+  .ctrl-btn:active { transform:translateY(2px);  box-shadow:0 2px 0 #888; }
+
+  /* Pause overlay */
+  #paused-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,.55); z-index:999; align-items:center; justify-content:center; }
+  #paused-overlay.show { display:flex; }
+  .pause-box { background:white; padding:36px 44px; border-radius:20px; text-align:center; border:4px solid #7c3aed; }
+  .pause-box h2 { font-family:'Press Start 2P',monospace; font-size:17px; margin-bottom:18px; color:#333; }
+  .pause-btns { display:flex; flex-direction:column; gap:10px; align-items:center; }
+  #resume-btn { padding:13px 26px; background:#7c3aed; color:white; border:3px solid #333; border-radius:12px; font-family:'Press Start 2P',monospace; font-size:11px; cursor:pointer; box-shadow:0 5px 0 #4c1d95; width:100%; }
+  #resume-btn:active { transform:translateY(3px); box-shadow:0 2px 0 #4c1d95; }
+  #pause-change-mode-btn { padding:13px 26px; background:white; color:#333; border:3px solid #333; border-radius:12px; font-family:'Press Start 2P',monospace; font-size:11px; cursor:pointer; box-shadow:0 5px 0 #888; width:100%; }
+  #pause-change-mode-btn:active { transform:translateY(3px); box-shadow:0 2px 0 #888; }
+
+  /* End screen */
+  #end-screen { display:none; text-align:center; }
+  #end-screen h2 { font-family:'Press Start 2P',monospace; font-size:clamp(12px,3.5vw,18px); margin-bottom:16px; color:#333; }
+  .final-score { font-family:'Press Start 2P',monospace; font-size:clamp(26px,8vw,46px); color:var(--accent); text-shadow:3px 3px 0 #4c1d95; margin-bottom:6px; }
+  .final-label { font-family:'Press Start 2P',monospace; font-size:9px; color:#999; margin-bottom:16px; }
+  .new-record  { font-family:'Press Start 2P',monospace; font-size:12px; color:var(--gold); text-shadow:1px 1px 0 #b8860b; animation:bounce .6s infinite alternate; margin-bottom:14px; }
+  @keyframes bounce { from{transform:scale(1)} to{transform:scale(1.1)} }
+  .end-btns { display:flex; gap:12px; justify-content:center; flex-wrap:wrap; margin-top:8px; }
+  .end-btn { padding:13px 22px; border:3px solid #333; border-radius:12px; font-family:'Press Start 2P',monospace; font-size:9px; cursor:pointer; transition:all .1s; }
+  .end-btn.play-again  { background:var(--accent); color:white; box-shadow:0 5px 0 #4c1d95; }
+  .end-btn.change-mode { background:white; color:#333; box-shadow:0 5px 0 #888; }
+  .end-btn:active { transform:translateY(3px); box-shadow:0 2px 0 #888; }
+
+  /* Score popup */
+  .score-popup { position:fixed; font-family:'Press Start 2P',monospace; font-size:15px; pointer-events:none; z-index:200; animation:floatUp .9s forwards; }
+  .score-popup.plus  { color:#2e7d32; text-shadow:1px 1px 0 white; }
+  .score-popup.minus { color:var(--danger); text-shadow:1px 1px 0 white; }
+  @keyframes floatUp { 0%{opacity:1;transform:translateY(0) scale(1)} 100%{opacity:0;transform:translateY(-55px) scale(1.3)} }
+</style>
+</head>
+<body>
+
+<div class="sky-bg"></div>
+<div class="stars" id="stars"></div>
+<div class="cloud" style="width:130px;height:40px;top:8%;animation-duration:32s;animation-delay:-5s"></div>
+<div class="cloud" style="width:90px;height:30px;top:20%;animation-duration:24s;animation-delay:-15s"></div>
+<div class="cloud" style="width:170px;height:55px;top:5%;animation-duration:40s;animation-delay:-24s"></div>
+
+<div class="dino-scene"><canvas id="dino-canvas"></canvas></div>
+<div class="ground"></div>
+
+<div id="paused-overlay">
+  <div class="pause-box">
+    <h2>⏸ PAUSED</h2>
+    <div class="pause-btns">
+      <button id="resume-btn" onclick="resumeGame()">▶ RESUME</button>
+      <button id="pause-change-mode-btn" onclick="changeMode()">🔀 CHANGE MODE</button>
+    </div>
+  </div>
+</div>
+
+<div id="app">
+  <div class="game-title">🦕 FRACTION DINO 🦕</div>
+
+  <div class="high-score-bar">
+    <div class="hs-box" id="hs-lv1-box"><span class="hs-label">LV 1</span><div class="hs-val" id="hs-lv1">0</div></div>
+    <div class="hs-box" id="hs-lv2-box"><span class="hs-label">LV 2</span><div class="hs-val" id="hs-lv2">0</div></div>
+    <div class="hs-box" id="hs-lv3-box"><span class="hs-label">LV 3</span><div class="hs-val" id="hs-lv3">0</div></div>
+    <div class="hs-box" id="hs-lv4-box"><span class="hs-label">LV 4</span><div class="hs-val" id="hs-lv4">0</div></div>
+  </div>
+
+  <div class="panel" id="mode-screen">
+    <h2>CHOOSE<br>YOUR LEVEL!</h2>
+    <button class="mode-btn lv1" onclick="startGame('lv1')">
+      <span class="btn-title">🌱 Level 1</span>
+      <span class="btn-sub">Add &amp; subtract fractions — same denominator</span>
+    </button>
+    <button class="mode-btn lv2" onclick="startGame('lv2')">
+      <span class="btn-title">💧 Level 2</span>
+      <span class="btn-sub">Add &amp; subtract — different denominators</span>
+    </button>
+    <button class="mode-btn lv3" onclick="startGame('lv3')">
+      <span class="btn-title">🔥 Level 3</span>
+      <span class="btn-sub">Multiply &amp; divide fractions</span>
+    </button>
+    <button class="mode-btn lv4" onclick="startGame('lv4')">
+      <span class="btn-title">⚡ Level 4</span>
+      <span class="btn-sub">All operations — mixed numbers too!</span>
+    </button>
+  </div>
+
+  <div class="panel" id="game-screen">
+    <div class="hud">
+      <div class="hud-item"><span class="lbl">SCORE</span><span class="val" id="score-val">0</span></div>
+      <div class="hud-item"><span class="lbl">TIME</span><span class="val" id="timer-val">60</span></div>
+      <div class="hud-item"><span class="lbl">BEST</span><span class="val" id="current-best">0</span></div>
+    </div>
+    <div class="timer-bar-wrap"><div id="timer-bar"></div></div>
+
+    <div class="question-box" id="question-box">
+      <!-- question rendered here by JS -->
+    </div>
+
+    <div id="feedback"></div>
+
+    <div class="answer-section">
+      <div class="answer-hint" id="answer-hint">Enter your answer as a fraction (numerator / denominator)</div>
+      <div class="answer-row" id="answer-row">
+        <!-- inputs rendered by JS -->
+      </div>
+    </div>
+
+    <div class="ctrl-row">
+      <button class="ctrl-btn" id="pause-btn"   onclick="pauseGame()">⏸ PAUSE</button>
+      <button class="ctrl-btn" id="restart-btn" onclick="restartGame()">🔄 RESTART</button>
+    </div>
+  </div>
+
+  <div class="panel" id="end-screen">
+    <h2>TIME'S UP! 🦕</h2>
+    <div class="final-score" id="final-score">0</div>
+    <div class="final-label">POINTS SCORED</div>
+    <div class="new-record" id="new-record-msg" style="display:none">🏆 NEW HIGH SCORE! 🏆</div>
+    <div class="end-btns">
+      <button class="end-btn play-again"  onclick="playAgain()">▶ PLAY AGAIN</button>
+      <button class="end-btn change-mode" onclick="changeMode()">🔀 CHANGE LEVEL</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════
+//  STARS
+// ═══════════════════════════════════════════
+(function(){
+  const c = document.getElementById('stars');
+  for (let i=0; i<80; i++) {
+    const s = document.createElement('div');
+    s.className = 'star';
+    const sz = Math.random()*3+1;
+    s.style.cssText = `width:${sz}px;height:${sz}px;top:${Math.random()*70}%;left:${Math.random()*100}%;animation-duration:${1.5+Math.random()*3}s;animation-delay:${Math.random()*3}s`;
+    c.appendChild(s);
+  }
+})();
+
+// ═══════════════════════════════════════════
+//  CANVAS DINO RENDERER  (same as integer game)
+// ═══════════════════════════════════════════
+const canvas = document.getElementById('dino-canvas');
+const ctx    = canvas.getContext('2d');
+const WIFI_COUNT = 12;
+const S = 3;
+
+const dino = { x:24, targetX:24, legPhase:0, chompT:0, sadTimer:0, idleT:0 };
+let wifiSlots = [], rafId=null, lastTs=0, sceneRunning=false;
+
+function resizeCanvas() {
+  canvas.width  = canvas.parentElement.offsetWidth;
+  canvas.height = canvas.parentElement.offsetHeight;
+  rebuildWifi();
+}
+function rebuildWifi() {
+  const W=canvas.width, startX=120, endX=W-55;
+  const gap=(endX-startX)/Math.max(1,WIFI_COUNT-1);
+  wifiSlots = Array.from({length:WIFI_COUNT},(_,i)=>({x:Math.round(startX+i*gap),alive:true,popT:0}));
+}
+
+function pr(col,row,w,h,color,bx,baseY) {
+  ctx.fillStyle=color;
+  ctx.fillRect(bx+col*S, baseY-row*S-h*S, w*S, h*S);
+}
+function drawDino(bx,baseY) {
+  const G='#7c3aed',GL='#a78bfa',GD='#4c1d95',WH='#ffffff',BK='#111';
+  const bob = dino.sadTimer>0 ? 0 : Math.sin(dino.idleT*2.2)*1.5;
+  const by  = baseY - Math.round(bob);
+  // tail
+  pr(-4,7,3,2,GD,bx,by); pr(-5,6,2,1,GD,bx,by);
+  // body
+  pr(0,5,10,8,G,bx,by);
+  // spikes
+  pr(1,13,2,3,GL,bx,by); pr(3,13,2,5,GL,bx,by);
+  pr(5,13,2,4,GL,bx,by); pr(7,13,2,2,GL,bx,by);
+  // head
+  pr(7,10,7,8,G,bx,by);
+  // snout
+  pr(11,12,5,3,GL,bx,by);
+  // jaw
+  const cd=Math.round(Math.sin(dino.chompT*Math.PI)*3);
+  ctx.fillStyle=G;
+  ctx.fillRect(bx+11*S, by-(8-cd)*S-3*S, 5*S, 3*S);
+  // teeth
+  pr(12,10,1,1,WH,bx,by); pr(14,10,1,1,WH,bx,by);
+  // eye
+  if (dino.sadTimer>0) {
+    ctx.strokeStyle=BK; ctx.lineWidth=2.2; ctx.lineCap='round';
+    const ex=bx+13*S, ey=by-15.5*S;
+    ctx.beginPath(); ctx.moveTo(ex,ey); ctx.lineTo(ex+S*2.2,ey+S*2.2); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(ex+S*2.2,ey); ctx.lineTo(ex,ey+S*2.2); ctx.stroke();
+  } else {
+    pr(13,16,3,3,WH,bx,by); pr(14,15,2,2,BK,bx,by); pr(14,15,1,1,WH,bx,by);
+  }
+  pr(15,13,1,1,GD,bx,by);
+  // arm
+  pr(8,7,3,2,GL,bx,by); pr(10,8,2,1,GL,bx,by);
+  // legs
+  const swing = Math.abs(dino.targetX-dino.x)>1 ? Math.sin(dino.legPhase*Math.PI*2)*S*1.6 : 0;
+  ctx.fillStyle=GD;
+  ctx.fillRect(bx+2*S, by-5*S, 3*S, 5*S+swing);
+  ctx.fillRect(bx+1*S, by-1.5*S, 5*S, 2*S);
+  ctx.fillRect(bx+6*S, by-5*S, 3*S, 5*S-swing);
+  ctx.fillRect(bx+5*S, by-1.5*S, 5*S, 2*S);
+}
+function drawWifi(cx,cy,alpha,scale) {
+  ctx.save(); ctx.globalAlpha=Math.max(0,alpha);
+  ctx.translate(cx,cy); ctx.scale(scale,scale);
+  const color = scale>1 ? '#ff6b35' : '#e8d5ff';
+  ctx.strokeStyle=color; ctx.fillStyle=color; ctx.lineCap='round';
+  [[22,4],[14,4],[7,3]].forEach(([r,lw])=>{
+    ctx.lineWidth=lw; ctx.beginPath(); ctx.arc(0,0,r,Math.PI*1.18,Math.PI*1.82); ctx.stroke();
+  });
+  ctx.beginPath(); ctx.arc(0,3,4,0,Math.PI*2); ctx.fill();
+  ctx.restore();
+}
+function renderLoop(ts) {
+  if (!sceneRunning) return;
+  const dt=Math.min((ts-lastTs)/1000,0.05); lastTs=ts;
+  const W=canvas.width,H=canvas.height;
+  ctx.clearRect(0,0,W,H);
+  const dx=dino.targetX-dino.x;
+  if (Math.abs(dx)>0.4) { dino.x+=dx*Math.min(1,dt*7); dino.legPhase+=dt*5; }
+  else { dino.x=dino.targetX; }
+  dino.idleT+=dt;
+  if (dino.chompT>0) { dino.chompT+=dt*5; if(dino.chompT>=1) dino.chompT=0; }
+  if (dino.sadTimer>0) dino.sadTimer-=dt;
+  const wY=H-30;
+  for (const s of wifiSlots) {
+    if (s.alive) drawWifi(s.x,wY,0.85,1);
+    else if (s.popT>0) { drawWifi(s.x,wY,s.popT,1+(1-s.popT)*0.8); s.popT-=dt*3; }
+  }
+  drawDino(Math.round(dino.x),H);
+  rafId=requestAnimationFrame(renderLoop);
+}
+function startScene() { sceneRunning=true; lastTs=performance.now(); if(rafId)cancelAnimationFrame(rafId); rafId=requestAnimationFrame(renderLoop); }
+function stopScene()  { sceneRunning=false; if(rafId)cancelAnimationFrame(rafId); }
+function resetDinoPos() { dino.x=24;dino.targetX=24;dino.legPhase=0;dino.chompT=0;dino.sadTimer=0;dino.idleT=0; }
+function dinoEat() {
+  const next=wifiSlots.find(s=>s.alive); if(!next) return;
+  dino.targetX=next.x-48;
+  setTimeout(()=>{ next.alive=false; next.popT=1; dino.chompT=0.01; },620);
+}
+function dinoSad() { dino.targetX=Math.max(24,dino.x-35); dino.sadTimer=1.4; }
+
+// ═══════════════════════════════════════════
+//  FRACTION MATH HELPERS
+// ═══════════════════════════════════════════
+function gcd(a,b) { a=Math.abs(a); b=Math.abs(b); while(b){[a,b]=[b,a%b];} return a||1; }
+
+// Reduce a fraction to lowest terms; keep sign on numerator
+function reduce(n,d) {
+  if (d===0) return {n:0,d:1};
+  if (n===0) return {n:0,d:1};
+  const g=gcd(Math.abs(n),Math.abs(d));
+  let rn=n/g, rd=d/g;
+  if (rd<0){rn=-rn;rd=-rd;}
+  return {n:rn,d:rd};
+}
+
+function fracAdd(n1,d1,n2,d2) { return reduce(n1*d2+n2*d1, d1*d2); }
+function fracSub(n1,d1,n2,d2) { return reduce(n1*d2-n2*d1, d1*d2); }
+function fracMul(n1,d1,n2,d2) { return reduce(n1*n2, d1*d2); }
+function fracDiv(n1,d1,n2,d2) { return reduce(n1*d2, d1*n2); }
+
+// Check if student answer equals correct fraction (reduced both ways)
+function fracEqual(sn,sd,cn,cd) {
+  if (sd===0||cd===0) return false;
+  const s=reduce(sn,sd), c=reduce(cn,cd);
+  return s.n===c.n && s.d===c.d;
+}
+
+// Pick a random element from array
+function pick(arr) { return arr[Math.floor(Math.random()*arr.length)]; }
+// Random int in [min,max]
+function rand(min,max) { return Math.floor(Math.random()*(max-min+1))+min; }
+
+// Denominators to use per level
+const DENOMS_LV1 = [2,3,4,5,6,8,10];          // same denom questions
+const DENOMS_LV2 = [2,3,4,5,6,8,9,10,12];     // different denoms
+const DENOMS_LV3 = [2,3,4,5,6,7,8];
+const DENOMS_LV4 = [2,3,4,5,6,7,8,9,10,12];
+
+// Generate a simple proper fraction with given denominator
+function simpleFrac(d) {
+  const n=rand(1,d-1);
+  return {n,d};
+}
+
+// ═══════════════════════════════════════════
+//  QUESTION RENDERING
+// ═══════════════════════════════════════════
+
+// Build HTML for a single fraction
+function fracHTML(n,d,large=false) {
+  const sz = large ? 'font-size:clamp(18px,5vw,26px)' : '';
+  return `<span class="frac" style="${sz}"><span class="num">${n}</span><span class="den">${d}</span></span>`;
+}
+
+// Build HTML for a mixed number whole + frac
+function mixedHTML(w,n,d) {
+  if (n===0) return `<span style="font-size:clamp(18px,5vw,26px);font-weight:900">${w}</span>`;
+  return `<span class="mixed"><span class="whole">${w}</span>${fracHTML(n,d)}</span>`;
+}
+
+// Current correct answer stored as {n, d}
+let correctAns = {n:1, d:1};
+let currentMode = null;
+
+function renderQuestion(html) {
+  document.getElementById('question-box').innerHTML = `<div class="frac-expr">${html}</div>`;
+}
+
+function renderAnswerInputs(isFrac=true) {
+  const row = document.getElementById('answer-row');
+  const hint = document.getElementById('answer-hint');
+  if (isFrac) {
+    hint.textContent = 'Enter numerator and denominator (any equivalent fraction is accepted)';
+    row.innerHTML = `
+      <div class="frac-input-wrap" id="ans-wrap">
+        <input type="number" id="ans-num" placeholder="?" inputmode="numeric" autocomplete="off"
+          onkeydown="if(event.key==='Enter')document.getElementById('ans-den').focus()">
+        <div class="frac-line"></div>
+        <input type="number" id="ans-den" placeholder="?" inputmode="numeric" autocomplete="off"
+          onkeydown="if(event.key==='Enter')submitAnswer()">
+      </div>
+      <button id="submit-btn" onclick="submitAnswer()">GO!</button>
+    `;
+  } else {
+    // Whole number answer (for integer results like 1/2 × 4/2 = 1)
+    hint.textContent = 'Enter your answer';
+    row.innerHTML = `
+      <input type="number" id="ans-whole" placeholder="?" inputmode="numeric" autocomplete="off"
+        onkeydown="if(event.key==='Enter')submitAnswer()"
+        style="padding:13px 18px;font-family:'Press Start 2P',monospace;font-size:20px;border:3px solid #7c3aed;border-radius:12px;text-align:center;background:white;color:#333;outline:none;width:120px">
+      <button id="submit-btn" onclick="submitAnswer()">GO!</button>
+    `;
+  }
+}
+
+// ═══════════════════════════════════════════
+//  QUESTION GENERATION PER LEVEL
+// ═══════════════════════════════════════════
+let answerIsInteger = false; // whether to use single-box input
+
+function generateQuestion() {
+  answerIsInteger = false;
+  const fb=document.getElementById('feedback');
+  fb.textContent=''; fb.className='';
+
+  if (currentMode==='lv1') genLv1();
+  else if (currentMode==='lv2') genLv2();
+  else if (currentMode==='lv3') genLv3();
+  else genLv4();
+
+  renderAnswerInputs(!answerIsInteger);
+  // Focus first input
+  setTimeout(()=>{
+    const f = document.getElementById('ans-num') || document.getElementById('ans-whole');
+    if (f) f.focus();
+  }, 30);
+}
+
+// LV1: add or subtract, SAME denominator, result always positive proper fraction or whole number
+function genLv1() {
+  const d = pick(DENOMS_LV1);
+  const op = pick(['+','-']);
+  let n1=rand(1,d-1), n2=rand(1,d-1);
+  // For subtraction ensure n1 >= n2
+  if (op==='-' && n1<n2) [n1,n2]=[n2,n1];
+
+  const ans = op==='+' ? reduce(n1+n2,d) : reduce(n1-n2,d);
+  correctAns = ans;
+
+  // If answer is whole number, use single input
+  if (ans.d===1) answerIsInteger=true;
+
+  renderQuestion(
+    `${fracHTML(n1,d)} <span class="op-sym">${op}</span> ${fracHTML(n2,d)} <span class="op-sym">=</span> <span class="q-mark">?</span>`
+  );
+}
+
+// LV2: add or subtract, DIFFERENT denominators
+function genLv2() {
+  let d1=pick(DENOMS_LV2), d2=pick(DENOMS_LV2);
+  // Ensure they differ
+  while (d2===d1) d2=pick(DENOMS_LV2);
+  const op=pick(['+','-']);
+  const n1=rand(1,d1-1), n2=rand(1,d2-1);
+
+  const ans = op==='+' ? fracAdd(n1,d1,n2,d2) : fracSub(n1,d1,n2,d2);
+  // For subtraction, could be negative — regenerate if so
+  if (ans.n<0) { genLv2(); return; }
+  correctAns = ans;
+  if (ans.d===1) answerIsInteger=true;
+
+  renderQuestion(
+    `${fracHTML(n1,d1)} <span class="op-sym">${op}</span> ${fracHTML(n2,d2)} <span class="op-sym">=</span> <span class="q-mark">?</span>`
+  );
+}
+
+// LV3: multiply or divide simple fractions
+function genLv3() {
+  const d1=pick(DENOMS_LV3), d2=pick(DENOMS_LV3);
+  const n1=rand(1,d1-1), n2=rand(1,d2-1);
+  const op=pick(['×','÷']);
+
+  const ans = op==='×' ? fracMul(n1,d1,n2,d2) : fracDiv(n1,d1,n2,d2);
+  if (ans.n<=0||ans.d<=0) { genLv3(); return; }
+  correctAns = ans;
+  if (ans.d===1) answerIsInteger=true;
+
+  const opSym = op==='×' ? '×' : '÷';
+  renderQuestion(
+    `${fracHTML(n1,d1)} <span class="op-sym">${opSym}</span> ${fracHTML(n2,d2)} <span class="op-sym">=</span> <span class="q-mark">?</span>`
+  );
+}
+
+// LV4: all operations, sometimes involving mixed numbers
+function genLv4() {
+  const opPool=['+','-','×','÷'];
+  const op=pick(opPool);
+  const useMixed=Math.random()<0.35; // 35% chance of a mixed number operand
+
+  let n1,d1,n2,d2,w1=0,w2=0;
+  d1=pick(DENOMS_LV4); d2=pick(DENOMS_LV4);
+  n1=rand(1,d1-1); n2=rand(1,d2-1);
+
+  let ans;
+  if (!useMixed) {
+    ans = op==='+'?fracAdd(n1,d1,n2,d2):op==='-'?fracSub(n1,d1,n2,d2):op==='×'?fracMul(n1,d1,n2,d2):fracDiv(n1,d1,n2,d2);
+    if (ans.n<=0) { genLv4(); return; }
+    correctAns=ans;
+    if (ans.d===1) answerIsInteger=true;
+    const opSym = op==='×'?'×':op==='÷'?'÷':op;
+    renderQuestion(`${fracHTML(n1,d1)} <span class="op-sym">${opSym}</span> ${fracHTML(n2,d2)} <span class="op-sym">=</span> <span class="q-mark">?</span>`);
+  } else {
+    // Mixed number: convert w + n/d to improper fraction
+    w1=rand(1,4); w2=rand(1,4);
+    const imp1n=w1*d1+n1, imp2n=w2*d2+n2;
+    // Only do + or - with mixed numbers to keep it reasonable
+    const mixOp=pick(['+','-']);
+    ans = mixOp==='+'?fracAdd(imp1n,d1,imp2n,d2):fracSub(imp1n,d1,imp2n,d2);
+    if (ans.n<=0) { genLv4(); return; }
+    correctAns=ans;
+    // Answer might be improper — that's fine, accept any equivalent
+    if (ans.d===1) answerIsInteger=true;
+    renderQuestion(`${mixedHTML(w1,n1,d1)} <span class="op-sym">${mixOp}</span> ${mixedHTML(w2,n2,d2)} <span class="op-sym">=</span> <span class="q-mark">?</span>`);
+  }
+}
+
+// ═══════════════════════════════════════════
+//  ANSWER SUBMISSION
+// ═══════════════════════════════════════════
+function submitAnswer() {
+  if (!gameActive||isPaused) return;
+  const fb=document.getElementById('feedback');
+  const sv=document.getElementById('score-val');
+
+  let correct=false;
+  if (answerIsInteger) {
+    const w=parseInt(document.getElementById('ans-whole')?.value,10);
+    if (isNaN(w)) return;
+    correct = (w===correctAns.n && correctAns.d===1) || fracEqual(w,1,correctAns.n,correctAns.d);
+  } else {
+    const sn=parseInt(document.getElementById('ans-num')?.value,10);
+    const sd=parseInt(document.getElementById('ans-den')?.value,10);
+    if (isNaN(sn)||isNaN(sd)) return;
+    if (sd===0) { fb.textContent="Denominator can't be 0!"; fb.className='wrong'; return; }
+    correct = fracEqual(sn,sd,correctAns.n,correctAns.d);
+  }
+
+  const wrap=document.getElementById('ans-wrap');
+
+  if (correct) {
+    score++;
+    if (wrap) { wrap.classList.add('correct'); }
+    fb.textContent='✓ CORRECT!'; fb.className='correct';
+    sv.classList.remove('flash-minus'); void sv.offsetWidth;
+    showPopup('+1',true); dinoEat();
+  } else {
+    score=Math.max(0,score-1);
+    if (wrap) { wrap.classList.add('wrong'); }
+    // Show correct answer
+    const cn=correctAns.n, cd=correctAns.d;
+    const dispAns = cd===1 ? `${cn}` : `${cn}/${cd}`;
+    fb.textContent=`✗ Answer: ${dispAns}`; fb.className='wrong';
+    sv.classList.add('flash-minus'); void sv.offsetWidth;
+    setTimeout(()=>sv.classList.remove('flash-minus'),350);
+    showPopup('-1',false); dinoSad();
+  }
+
+  updateScoreDisplay();
+  setTimeout(()=>{ generateQuestion(); }, 500);
+}
+
+// ═══════════════════════════════════════════
+//  GAME STATE
+// ═══════════════════════════════════════════
+let score=0,timeLeft=60,gameTimer=null,isPaused=false,gameActive=false;
+let highScores={lv1:0,lv2:0,lv3:0,lv4:0};
+
+function loadHS() {
+  try { const s=localStorage.getItem('fracDinoHS'); if(s) highScores=JSON.parse(s); } catch(e){}
+  updateHSDisplay();
+}
+function saveHS() { try{localStorage.setItem('fracDinoHS',JSON.stringify(highScores));}catch(e){} }
+function updateHSDisplay() {
+  ['lv1','lv2','lv3','lv4'].forEach(m=>{
+    document.getElementById(`hs-${m}`).textContent=highScores[m]||0;
+    const box=document.getElementById(`hs-${m}-box`);
+    if(box) box.classList.toggle('active-mode',currentMode===m);
+  });
+  const cb=document.getElementById('current-best');
+  if(cb) cb.textContent=highScores[currentMode]||0;
+}
+
+function startGame(mode) {
+  currentMode=mode; score=0; timeLeft=60; isPaused=false; gameActive=true;
+  document.getElementById('mode-screen').style.display='none';
+  document.getElementById('end-screen').style.display='none';
+  document.getElementById('game-screen').style.display='block';
+  updateHSDisplay(); updateScoreDisplay(); updateTimerDisplay(); updateTimerBar();
+  resizeCanvas(); resetDinoPos(); startScene();
+  generateQuestion();
+  clearInterval(gameTimer);
+  gameTimer=setInterval(tick,1000);
+}
+function tick() {
+  if(isPaused||!gameActive) return;
+  timeLeft--; updateTimerDisplay(); updateTimerBar();
+  if(timeLeft<=0) endGame();
+}
+function pauseGame() {
+  if(!gameActive) return;
+  isPaused=true;
+  document.getElementById('paused-overlay').classList.add('show');
+  document.getElementById('pause-btn').textContent='⏸ PAUSED';
+}
+function resumeGame() {
+  isPaused=false;
+  document.getElementById('paused-overlay').classList.remove('show');
+  document.getElementById('pause-btn').textContent='⏸ PAUSE';
+  const f=document.getElementById('ans-num')||document.getElementById('ans-whole');
+  if(f) f.focus();
+}
+function restartGame() { clearInterval(gameTimer); startGame(currentMode); }
+function endGame() {
+  clearInterval(gameTimer); gameActive=false; stopScene();
+  document.getElementById('game-screen').style.display='none';
+  document.getElementById('end-screen').style.display='block';
+  document.getElementById('final-score').textContent=score;
+  const isNew=score>highScores[currentMode];
+  if(isNew){highScores[currentMode]=score;saveHS();updateHSDisplay();}
+  document.getElementById('new-record-msg').style.display=isNew?'block':'none';
+}
+function playAgain()  { startGame(currentMode); }
+function changeMode() {
+  clearInterval(gameTimer); gameActive=false; currentMode=null; stopScene();
+  document.getElementById('end-screen').style.display='none';
+  document.getElementById('game-screen').style.display='none';
+  document.getElementById('mode-screen').style.display='block';
+  document.getElementById('paused-overlay').classList.remove('show');
+  ['lv1','lv2','lv3','lv4'].forEach(m=>{
+    const box=document.getElementById(`hs-${m}-box`);
+    if(box) box.classList.remove('active-mode');
+  });
+  startScene();
+}
+
+function updateScoreDisplay() { document.getElementById('score-val').textContent=score; }
+function updateTimerDisplay() {
+  const el=document.getElementById('timer-val');
+  el.textContent=timeLeft; el.classList.toggle('urgent',timeLeft<=10);
+}
+function updateTimerBar() {
+  const bar=document.getElementById('timer-bar'),pct=(timeLeft/60)*100;
+  bar.style.width=pct+'%';
+  bar.style.background=pct>50?'linear-gradient(90deg,#7c3aed,#a78bfa)':pct>20?'linear-gradient(90deg,#FF9800,#FFC107)':'linear-gradient(90deg,#e53935,#FF5722)';
+}
+function showPopup(text,isPlus) {
+  const pop=document.createElement('div');
+  pop.className='score-popup '+(isPlus?'plus':'minus');
+  pop.textContent=text;
+  const box=document.getElementById('score-val').getBoundingClientRect();
+  pop.style.left=(box.left+box.width/2-15)+'px';
+  pop.style.top=(box.top-10)+'px';
+  document.body.appendChild(pop);
+  setTimeout(()=>pop.remove(),900);
+}
+
+// ═══════════════════════════════════════════
+//  INIT
+// ═══════════════════════════════════════════
+loadHS();
+resizeCanvas();
+startScene();
+
+window.addEventListener('resize',()=>resizeCanvas());
+document.addEventListener('keydown',e=>{
+  if(e.code==='Space'&&isPaused){e.preventDefault();resumeGame();}
+});
+</script>
+</body>
+</html>
